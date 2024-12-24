@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../backend:/app
+    environment:
+      - POSTGRES_SERVER=postgres
+      - POSTGRES_USER=mati
+      - POSTGRES_PASSWORD=matidev
+      - POSTGRES_DB=mati_dev
+    networks:
+      - mati_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:15
+    container_name: mati_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mati}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-matidev}
+      POSTGRES_DB: ${POSTGRES_DB:-mati_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - mati_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mati"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: mati_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@mati.ai}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    ports:
+      - "5050:80"
+    networks:
+      - mati_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+networks:
+  mati_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
